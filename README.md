@@ -8,25 +8,28 @@ Un outil de reconnaissance automatisé pour CTF qui enchaîne les phases nmap et
 
 ```bash
 # Linux AMD64
-wget https://github.com/VOTRE_USERNAME/recon-tools/releases/latest/download/recon-tool-linux-amd64
+wget https://github.com/cchopin/recon-tools/releases/latest/download/recon-tool-linux-amd64
 chmod +x recon-tool-linux-amd64
 sudo mv recon-tool-linux-amd64 /usr/local/bin/recon-tool
 
 # macOS AMD64
-wget https://github.com/VOTRE_USERNAME/recon-tools/releases/latest/download/recon-tool-darwin-amd64
+curl -L -o recon-tool-darwin-amd64 https://github.com/cchopin/recon-tools/releases/latest/download/recon-tool-darwin-amd64
 chmod +x recon-tool-darwin-amd64
 sudo mv recon-tool-darwin-amd64 /usr/local/bin/recon-tool
 
 # macOS ARM64 (M1/M2)
-wget https://github.com/VOTRE_USERNAME/recon-tools/releases/latest/download/recon-tool-darwin-arm64
+curl -L -o recon-tool-darwin-arm64 https://github.com/cchopin/recon-tools/releases/latest/download/recon-tool-darwin-arm64
 chmod +x recon-tool-darwin-arm64
 sudo mv recon-tool-darwin-arm64 /usr/local/bin/recon-tool
+
+# Windows
+# Télécharger depuis: https://github.com/cchopin/recon-tools/releases/latest/download/recon-tool-windows-amd64.exe
 ```
 
 ### Compilation depuis les sources
 
 ```bash
-git clone https://github.com/VOTRE_USERNAME/recon-tools.git
+git clone https://github.com/cchopin/recon-tools.git
 cd recon-tools
 make build
 sudo make install
