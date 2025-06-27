@@ -154,88 +154,112 @@ func (r *ReconTool) HasWebServices(filename string) ([]string, error) {
 }
 
 func (r *ReconTool) RunRecon() error {
-	defer r.LogFile.Close()
-
 	r.Log("Reconnaissance started for " + r.Target)
 	r.Log("Results in: " + r.OutputDir)
-
-	// Phase 1: Initial scan
-	r.Log("Phase 1: Initial scan of common ports")
-	if err := r.RunNmap([]string{}, "01_initial_scan.txt", "Initial scan"); err != nil {
-		return err
-	}
-
-	// Extract open ports
-	openPorts, err := r.ExtractOpenPorts("01_initial_scan.txt")
-	if err != nil {
-		return fmt.Errorf("error extracting ports: %v", err)
-	}
-
-	if len(openPorts) == 0 {
-		r.Log("No open ports found")
-		return nil
-	}
-
-	r.Log("Open ports found: " + strings.Join(openPorts, ", "))
-
-	var wg sync.WaitGroup
-
-	// Phase 2: Detailed scan of found ports
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		portList := strings.Join(openPorts, ",")
-		r.RunNmap([]string{"-A", "-p", portList}, "02_detailed_scan.txt", "Detailed scan of ports "+portList)
-	}()
-
-	// Phase 3: Full port scan in parallel
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		r.RunNmap([]string{"-p-"}, "03_full_scan.txt", "Full port scan -p-")
-	}()
-
-	// Check for web services and launch gobuster
-	webUrls, err := r.HasWebServices("01_initial_scan.txt")
-	if err == nil && len(webUrls) > 0 {
-		r.Log("Web services detected, starting gobuster")
-		
-		for _, url := range webUrls {
-			wg.Add(1)
-			go func(u string) {
-				defer wg.Done()
-				safeName := strings.ReplaceAll(u, "://", "_")
-				safeName = strings.ReplaceAll(safeName, ":", "_")
-				safeName = strings.ReplaceAll(safeName, "/", "_")
-				r.RunGobuster(u, "gobuster_"+safeName+".txt")
-			}(url)
-		}
-	}
-
 	r.Log("All scans running in background...")
 	r.Log("You can continue using your terminal while scans complete.")
 	r.Log("Check progress with: tail -f " + r.OutputDir + "/recon.log")
+	r.Log("Final summary will be written to: " + r.OutputDir + "/summary.txt")
 	fmt.Println()
 
-	wg.Wait()
+	// Run everything in background
+	go func() {
+		defer r.LogFile.Close()
 
-	// Phase 4: Final scan if new ports found
-	allPorts, err := r.ExtractOpenPorts("03_full_scan.txt")
-	if err == nil && len(allPorts) > len(openPorts) {
-		r.Log("New ports found: " + strings.Join(allPorts, ", "))
-		r.Log("Phase 4: Detailed scan of all ports")
-		portList := strings.Join(allPorts, ",")
-		r.RunNmap([]string{"-A", "-p", portList}, "04_final_detailed_scan.txt", "Final detailed scan")
-	}
+		// Phase 1: Initial scan
+		r.LogSilent("Phase 1: initial scan of common ports")
+		if err := r.RunNmap([]string{}, "01_initial_scan.txt", "Initial scan"); err != nil {
+			r.LogSilent("Error in initial scan: " + err.Error())
+			return
+		}
 
-	r.Log("=== SUMMARY ===")
-	r.Log("Open ports: " + strings.Join(openPorts, ", "))
-	if len(allPorts) > len(openPorts) {
-		r.Log("All ports: " + strings.Join(allPorts, ", "))
-	}
+		// Extract open ports
+		openPorts, err := r.ExtractOpenPorts("01_initial_scan.txt")
+		if err != nil {
+			r.LogSilent("Error extracting ports: " + err.Error())
+			return
+		}
 
-	r.Log("🎯 Reconnaissance completed!")
-	r.Log("📁 Results in: " + r.OutputDir)
+		if len(openPorts) == 0 {
+			r.LogSilent("No open ports found")
+			return
+		}
+
+		r.LogSilent("Open ports found: " + strings.Join(openPorts, ", "))
+
+		var wg sync.WaitGroup
+
+		// Phase 2: Detailed scan of found ports
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			portList := strings.Join(openPorts, ",")
+			r.RunNmap([]string{"-A", "-p", portList}, "02_detailed_scan.txt", "Detailed scan of ports "+portList)
+		}()
+
+		// Phase 3: Full port scan in parallel
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r.RunNmap([]string{"-p-"}, "03_full_scan.txt", "Full port scan -p-")
+		}()
+
+		// Check for web services and launch gobuster
+		webUrls, err := r.HasWebServices("01_initial_scan.txt")
+		if err == nil && len(webUrls) > 0 {
+			r.LogSilent("Web services detected, starting gobuster")
+			
+			for _, url := range webUrls {
+				wg.Add(1)
+				go func(u string) {
+					defer wg.Done()
+					safeName := strings.ReplaceAll(u, "://", "_")
+					safeName = strings.ReplaceAll(safeName, ":", "_")
+					safeName = strings.ReplaceAll(safeName, "/", "_")
+					r.RunGobuster(u, "gobuster_"+safeName+".txt")
+				}(url)
+			}
+		}
+
+		wg.Wait()
+
+		// Phase 4: Final scan if new ports found
+		allPorts, err := r.ExtractOpenPorts("03_full_scan.txt")
+		if err == nil && len(allPorts) > len(openPorts) {
+			r.LogSilent("New ports found: " + strings.Join(allPorts, ", "))
+			r.LogSilent("Phase 4: detailed scan of all ports")
+			portList := strings.Join(allPorts, ",")
+			r.RunNmap([]string{"-A", "-p", portList}, "04_final_detailed_scan.txt", "Final detailed scan")
+			
+			// Re-extract all ports after final scan
+			allPorts, _ = r.ExtractOpenPorts("04_final_detailed_scan.txt")
+		}
+
+		// Write summary to file
+		summaryPath := filepath.Join(r.OutputDir, "summary.txt")
+		summaryFile, err := os.Create(summaryPath)
+		if err == nil {
+			defer summaryFile.Close()
+			
+			fmt.Fprintf(summaryFile, "=== reconnaissance summary ===\n")
+			fmt.Fprintf(summaryFile, "Target: %s\n", r.Target)
+			fmt.Fprintf(summaryFile, "Open ports: %s\n", strings.Join(openPorts, ", "))
+			if len(allPorts) > len(openPorts) {
+				fmt.Fprintf(summaryFile, "All ports: %s\n", strings.Join(allPorts, ", "))
+			}
+			fmt.Fprintf(summaryFile, "Reconnaissance completed!\n")
+			fmt.Fprintf(summaryFile, "Results in: %s\n", r.OutputDir)
+		}
+
+		r.LogSilent("=== summary ===")
+		r.LogSilent("Open ports: " + strings.Join(openPorts, ", "))
+		if len(allPorts) > len(openPorts) {
+			r.LogSilent("All ports: " + strings.Join(allPorts, ", "))
+		}
+		r.LogSilent("Reconnaissance completed!")
+		r.LogSilent("Results in: " + r.OutputDir)
+	}()
+
 	return nil
 }
 
