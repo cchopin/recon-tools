@@ -27,13 +27,13 @@ func NewReconTool(target, wordlist string) (*ReconTool, error) {
 	outputDir = strings.ReplaceAll(outputDir, ":", "_")
 
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("erreur création dossier: %v", err)
+		return nil, fmt.Errorf("error creating directory: %v", err)
 	}
 
 	logPath := filepath.Join(outputDir, "recon.log")
 	logFile, err := os.Create(logPath)
 	if err != nil {
-		return nil, fmt.Errorf("erreur création log: %v", err)
+		return nil, fmt.Errorf("error creating log file: %v", err)
 	}
 
 	logger := log.New(logFile, "", log.LstdFlags)
@@ -54,8 +54,12 @@ func (r *ReconTool) Log(message string) {
 	r.Logger.Println(message)
 }
 
+func (r *ReconTool) LogSilent(message string) {
+	r.Logger.Println(message)
+}
+
 func (r *ReconTool) RunNmap(args []string, outputFile, description string) error {
-	r.Log("Démarrage: " + description)
+	r.LogSilent("Starting: " + description)
 	
 	cmd := exec.Command("nmap")
 	cmd.Args = append(cmd.Args, args...)
@@ -65,24 +69,30 @@ func (r *ReconTool) RunNmap(args []string, outputFile, description string) error
 
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("erreur nmap: %v", err)
+		return fmt.Errorf("nmap error: %v", err)
 	}
 
-	r.Log("Terminé: " + description)
+	r.LogSilent("Completed: " + description)
 	return nil
 }
 
 func (r *ReconTool) RunGobuster(url, outputFile string) error {
-	r.Log("Démarrage: Gobuster sur " + url)
+	r.LogSilent("Starting: Gobuster on " + url)
 	
-	cmd := exec.Command("gobuster", "dir", "-u", url, "-w", r.Wordlist, "-o", filepath.Join(r.OutputDir, outputFile), "-q")
+	// Check if wordlist exists
+	if _, err := os.Stat(r.Wordlist); os.IsNotExist(err) {
+		r.LogSilent("Warning: Wordlist not found at " + r.Wordlist + ", skipping gobuster")
+		return nil
+	}
+	
+	cmd := exec.Command("gobuster", "dir", "-u", url, "-w", r.Wordlist, "-o", filepath.Join(r.OutputDir, outputFile), "-q", "--timeout", "10s")
 	err := cmd.Run()
 	if err != nil {
-		r.Log("Erreur gobuster sur " + url + ": " + err.Error())
-		return err
+		r.LogSilent("Gobuster error on " + url + ": " + err.Error())
+		return nil // Don't fail the entire process for gobuster errors
 	}
 
-	r.Log("Terminé: Gobuster sur " + url)
+	r.LogSilent("Completed: Gobuster on " + url)
 	return nil
 }
 
@@ -123,6 +133,8 @@ func (r *ReconTool) HasWebServices(filename string) ([]string, error) {
 		"443":  "https",
 		"8080": "http",
 		"8443": "https",
+		"8008": "http",
+		"8010": "http",
 	}
 
 	for scanner.Scan() {
@@ -144,49 +156,49 @@ func (r *ReconTool) HasWebServices(filename string) ([]string, error) {
 func (r *ReconTool) RunRecon() error {
 	defer r.LogFile.Close()
 
-	r.Log("Reconnaissance démarrée pour " + r.Target)
-	r.Log("Résultats dans: " + r.OutputDir)
+	r.Log("Reconnaissance started for " + r.Target)
+	r.Log("Results in: " + r.OutputDir)
 
-	// Phase 1: Scan initial
-	r.Log("Phase 1: Scan initial des ports courants")
-	if err := r.RunNmap([]string{}, "01_initial_scan.txt", "Scan initial"); err != nil {
+	// Phase 1: Initial scan
+	r.Log("Phase 1: Initial scan of common ports")
+	if err := r.RunNmap([]string{}, "01_initial_scan.txt", "Initial scan"); err != nil {
 		return err
 	}
 
-	// Extraire les ports ouverts
+	// Extract open ports
 	openPorts, err := r.ExtractOpenPorts("01_initial_scan.txt")
 	if err != nil {
-		return fmt.Errorf("erreur extraction ports: %v", err)
+		return fmt.Errorf("error extracting ports: %v", err)
 	}
 
 	if len(openPorts) == 0 {
-		r.Log("Aucun port ouvert trouvé")
+		r.Log("No open ports found")
 		return nil
 	}
 
-	r.Log("Ports ouverts trouvés: " + strings.Join(openPorts, ", "))
+	r.Log("Open ports found: " + strings.Join(openPorts, ", "))
 
 	var wg sync.WaitGroup
 
-	// Phase 2: Scan détaillé des ports trouvés
+	// Phase 2: Detailed scan of found ports
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		portList := strings.Join(openPorts, ",")
-		r.RunNmap([]string{"-A", "-p", portList}, "02_detailed_scan.txt", "Scan détaillé des ports "+portList)
+		r.RunNmap([]string{"-A", "-p", portList}, "02_detailed_scan.txt", "Detailed scan of ports "+portList)
 	}()
 
-	// Phase 3: Scan complet en parallèle
+	// Phase 3: Full port scan in parallel
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		r.RunNmap([]string{"-p-"}, "03_full_scan.txt", "Scan complet -p-")
+		r.RunNmap([]string{"-p-"}, "03_full_scan.txt", "Full port scan -p-")
 	}()
 
-	// Vérifier les services web et lancer gobuster
+	// Check for web services and launch gobuster
 	webUrls, err := r.HasWebServices("01_initial_scan.txt")
 	if err == nil && len(webUrls) > 0 {
-		r.Log("Services web détectés, démarrage de gobuster")
+		r.Log("Web services detected, starting gobuster")
 		
 		for _, url := range webUrls {
 			wg.Add(1)
@@ -200,25 +212,30 @@ func (r *ReconTool) RunRecon() error {
 		}
 	}
 
+	r.Log("All scans running in background...")
+	r.Log("You can continue using your terminal while scans complete.")
+	r.Log("Check progress with: tail -f " + r.OutputDir + "/recon.log")
+	fmt.Println()
+
 	wg.Wait()
 
-	// Phase 4: Scan final si nouveaux ports trouvés
+	// Phase 4: Final scan if new ports found
 	allPorts, err := r.ExtractOpenPorts("03_full_scan.txt")
 	if err == nil && len(allPorts) > len(openPorts) {
-		r.Log("Nouveaux ports trouvés: " + strings.Join(allPorts, ", "))
-		r.Log("Phase 4: Scan détaillé de tous les ports")
+		r.Log("New ports found: " + strings.Join(allPorts, ", "))
+		r.Log("Phase 4: Detailed scan of all ports")
 		portList := strings.Join(allPorts, ",")
-		r.RunNmap([]string{"-A", "-p", portList}, "04_final_detailed_scan.txt", "Scan détaillé final")
+		r.RunNmap([]string{"-A", "-p", portList}, "04_final_detailed_scan.txt", "Final detailed scan")
 	}
 
-	r.Log("=== RÉSUMÉ ===")
-	r.Log("Ports ouverts: " + strings.Join(openPorts, ", "))
+	r.Log("=== SUMMARY ===")
+	r.Log("Open ports: " + strings.Join(openPorts, ", "))
 	if len(allPorts) > len(openPorts) {
-		r.Log("Tous les ports: " + strings.Join(allPorts, ", "))
+		r.Log("All ports: " + strings.Join(allPorts, ", "))
 	}
 
-	r.Log("🎯 Reconnaissance terminée!")
-	r.Log("📁 Résultats dans: " + r.OutputDir)
+	r.Log("🎯 Reconnaissance completed!")
+	r.Log("📁 Results in: " + r.OutputDir)
 	return nil
 }
 
@@ -239,10 +256,10 @@ func main() {
 
 	tool, err := NewReconTool(target, wordlist)
 	if err != nil {
-		log.Fatal("Erreur initialisation:", err)
+		log.Fatal("Initialization error:", err)
 	}
 
 	if err := tool.RunRecon(); err != nil {
-		log.Fatal("Erreur reconnaissance:", err)
+		log.Fatal("Reconnaissance error:", err)
 	}
 }

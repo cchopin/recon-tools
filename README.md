@@ -1,10 +1,10 @@
 # Recon Tool
 
-Un outil de reconnaissance automatisé pour CTF qui enchaîne les phases nmap et gobuster sans bloquer votre console.
+An automated reconnaissance tool for CTF that chains nmap and gobuster phases without blocking your console.
 
 ## Installation
 
-### Installation rapide depuis les releases
+### Quick installation from releases
 
 ```bash
 # Linux AMD64
@@ -23,10 +23,10 @@ chmod +x recon-tool-darwin-arm64
 sudo mv recon-tool-darwin-arm64 /usr/local/bin/recon-tool
 
 # Windows
-# Télécharger depuis: https://github.com/cchopin/recon-tools/releases/latest/download/recon-tool-windows-amd64.exe
+# Download from: https://github.com/cchopin/recon-tools/releases/latest/download/recon-tool-windows-amd64.exe
 ```
 
-### Compilation depuis les sources
+### Compilation from source
 
 ```bash
 git clone https://github.com/cchopin/recon-tools.git
@@ -35,80 +35,87 @@ make build
 sudo make install
 ```
 
-## Utilisation
+## Usage
 
 ```bash
-# Utilisation basique
+# Basic usage
 recon-tool 10.10.10.1
 
-# Avec une wordlist personnalisée
+# With custom wordlist
 recon-tool example.com /path/to/wordlist.txt
 ```
 
-## Fonctionnalités
+## Features
 
-L'outil exécute automatiquement les phases suivantes **en parallèle** :
+The tool automatically executes the following phases **in parallel**:
 
-1. **Scan initial** : `nmap <target>` - Scan rapide des ports courants
-2. **Scan détaillé** : `nmap -A -p <ports_trouvés> <target>`
-3. **Scan complet** : `nmap -p- <target>` - Scan de tous les ports
-4. **Gobuster** : Si des services web sont détectés (ports 80, 443, 8080, 8443)
-5. **Scan final** : `nmap -A -p <tous_les_ports> <target>` si de nouveaux ports sont trouvés
+1. **Initial scan**: `nmap <target>` - Quick scan of common ports
+2. **Detailed scan**: `nmap -A -p <found_ports> <target>`
+3. **Full scan**: `nmap -p- <target>` - Scan all ports
+4. **Gobuster**: If web services are detected (ports 80, 443, 8080, 8443, 8008, 8010)
+5. **Final scan**: `nmap -A -p <all_ports> <target>` if new ports are found
 
-## Avantages
+## Advantages
 
-- ✅ **Non-bloquant** : Les scans s'exécutent en arrière-plan
-- ✅ **Parallélisation** : Plusieurs scans simultanés
-- ✅ **Logs détaillés** : Tous les résultats sont sauvegardés
-- ✅ **Multi-format** : Sortie en texte et XML
-- ✅ **Cross-platform** : Linux, macOS, Windows
-- ✅ **Binaire unique** : Pas de dépendances
+- ✅ **Non-blocking**: Scans run in background
+- ✅ **Parallelization**: Multiple simultaneous scans
+- ✅ **Detailed logging**: All results are saved
+- ✅ **Multi-format**: Text and XML output
+- ✅ **Cross-platform**: Linux, macOS, Windows
+- ✅ **Single binary**: No dependencies
 
-## Prérequis
+## Prerequisites
 
-- `nmap` installé
-- `gobuster` installé (pour les scans web)
+- `nmap` installed
+- `gobuster` installed (for web scans)
 
-## Exemple de sortie
+## Example output
 
 ```
-[15:30:15] Reconnaissance démarrée pour 10.10.10.1
-[15:30:15] Résultats dans: recon_10.10.10.1_20231027_153015
-[15:30:15] Phase 1: Scan initial des ports courants
-[15:30:25] Terminé: Scan initial
-[15:30:25] Ports ouverts trouvés: 22, 80, 443
-[15:30:25] Phase 2: Scan détaillé des ports trouvés
-[15:30:25] Phase 3: Scan complet de tous les ports
-[15:30:25] Services web détectés, démarrage de gobuster
-[15:30:25] Démarrage: Gobuster sur http://10.10.10.1
-[15:30:25] Démarrage: Gobuster sur https://10.10.10.1
-[15:32:18] Terminé: Scan détaillé des ports 22,80,443
-[15:35:42] Terminé: Gobuster sur http://10.10.10.1
-[15:36:12] Terminé: Gobuster sur https://10.10.10.1
-[15:42:33] Terminé: Scan complet -p-
-[15:42:34] 🎯 Reconnaissance terminée!
-[15:42:34] 📁 Résultats dans: recon_10.10.10.1_20231027_153015
+[15:30:15] Reconnaissance started for 10.10.10.1
+[15:30:15] Results in: recon_10.10.10.1_20231027_153015
+[15:30:15] Phase 1: Initial scan of common ports
+[15:30:25] Completed: Initial scan
+[15:30:25] Open ports found: 22, 80, 443
+[15:30:25] Phase 2: Detailed scan of found ports
+[15:30:25] Starting: Full port scan -p-
+[15:30:25] Web services detected, starting gobuster
+[15:30:25] Starting: Gobuster on http://10.10.10.1
+[15:30:25] Starting: Gobuster on https://10.10.10.1
+[15:32:18] Completed: Detailed scan of ports 22,80,443
+[15:35:42] Completed: Gobuster on http://10.10.10.1
+[15:36:12] Completed: Gobuster on https://10.10.10.1
+[15:42:33] Completed: Full port scan -p-
+[15:42:34] 🎯 Reconnaissance completed!
+[15:42:34] 📁 Results in: recon_10.10.10.1_20231027_153015
 ```
 
-## Fichiers générés
+## Generated files
 
-- `01_initial_scan.txt` - Scan initial
-- `02_detailed_scan.txt` - Scan détaillé des premiers ports
-- `03_full_scan.txt` - Scan complet de tous les ports
-- `04_final_detailed_scan.txt` - Scan final si nouveaux ports
-- `gobuster_*.txt` - Résultats gobuster pour chaque service web
-- `*.xml` - Versions XML des scans nmap
-- `recon.log` - Log complet de la session
+- `01_initial_scan.txt` - Initial scan
+- `02_detailed_scan.txt` - Detailed scan of first ports
+- `03_full_scan.txt` - Full scan of all ports
+- `04_final_detailed_scan.txt` - Final scan if new ports found
+- `gobuster_*.txt` - Gobuster results for each web service
+- `*.xml` - XML versions of nmap scans
+- `recon.log` - Complete session log
 
-## Développement
+## Development
 
 ```bash
-# Compiler pour toutes les plateformes
+# Compile for all platforms
 make release
 
-# Nettoyer
+# Clean
 make clean
 
-# Installer localement
+# Install locally
 make install
 ```
+
+## Error handling
+
+- If wordlist is not found, gobuster is skipped with a warning
+- Gobuster errors don't stop the entire reconnaissance process
+- All errors are logged for debugging
+- Timeout added to gobuster to prevent hanging
